@@ -11,6 +11,7 @@ import com.docflow.common.DocRole;
 import com.docflow.common.NotFoundException;
 import com.docflow.folder.Folder;
 import com.docflow.folder.FolderRepository;
+import com.docflow.notification.NotificationService;
 import com.docflow.tag.DocumentTagService;
 import com.docflow.template.DocumentTemplate;
 import com.docflow.template.DocumentTemplateRepository;
@@ -33,6 +34,7 @@ public class DocumentService {
     private final AclService aclService;
     private final AuditService auditService;
     private final WebSocketNotifier notifier;
+    private final NotificationService notificationService;
     private final DocumentTemplateRepository templateRepository;
     private final DocumentTagService documentTagService;
 
@@ -43,6 +45,7 @@ public class DocumentService {
                            AclService aclService,
                            AuditService auditService,
                            WebSocketNotifier notifier,
+                           NotificationService notificationService,
                            DocumentTemplateRepository templateRepository,
                            DocumentTagService documentTagService) {
         this.documentRepository = documentRepository;
@@ -52,6 +55,7 @@ public class DocumentService {
         this.aclService = aclService;
         this.auditService = auditService;
         this.notifier = notifier;
+        this.notificationService = notificationService;
         this.templateRepository = templateRepository;
         this.documentTagService = documentTagService;
     }
@@ -228,7 +232,20 @@ public class DocumentService {
         payload.put("version", saved.getVersion());
         payload.put("updatedAt", saved.getUpdatedAt());
         notifier.broadcastToDoc(saved.getId(), "doc.sync", payload);
+        if ("doc_save".equals(action)) {
+            notifyDocEdited(actor, saved);
+        }
         return saved;
+    }
+
+    private void notifyDocEdited(User actor, Document document) {
+        for (DocMember member : docMemberRepository.findWithUserByDocumentId(document.getId())) {
+            User target = member.getUser();
+            if (target.getId().equals(actor.getId())) {
+                continue;
+            }
+            notificationService.notifyDocumentEdited(target, document, "Document updated");
+        }
     }
 
     public record DocumentWithRole(Document document, DocRole role) {

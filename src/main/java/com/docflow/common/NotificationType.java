@@ -5,7 +5,9 @@ public enum NotificationType {
     COMMENT_REPLY(2),
     MENTION(3),
     TASK_ASSIGNED(4),
-    TASK_COMPLETED(5);
+    TASK_COMPLETED(5),
+    DOC_EDIT(6),
+    COMMENT(7);
 
     private final int code;
 

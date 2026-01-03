@@ -25,8 +25,9 @@
 2. **文档闭环**：创建-编辑-自动保存-分享权限-删除（软删可选）
 3. **协作感闭环（弱实时）**：在线成员展示（presence）+ 保存冲突提示（不做 OT/CRDT 合并）
 4. **评论闭环**：评论/回复/@提及
-5. **通知闭环**：站内通知（含未读/已读）
-6. **审计闭环**：关键操作日志可追溯
+5. **通知闭环**：站内通知（含未读/已读）+ 分类过滤 + 通知设置
+6. **通讯闭环**：聊天、会议、屏幕共享、文件共享
+7. **审计闭环**：关键操作日志可追溯
 
 ------
 
@@ -40,20 +41,22 @@
 - 协作（弱实时）：实时编辑同步、光标位置同步、presence、冲突检测（基于版本号）
 - 评论/批注：行内评论、批注、回复、@提及
 - 任务：创建与分配、状态跟踪、截止日期、完成通知
-- 通知：站内通知（列表、未读数、已读）
+- 通知：站内通知（列表、未读数、已读）、分类过滤、通知设置（按类型订阅/免打扰）
+- 通讯：聊天、视频会议集成、屏幕共享、文件共享
+- 系统管理：用户列表管理、用户权限调整、用户行为分析、用户满意度调查
 
 ### 2.2 系统内（P1 增强）
 
 - 断线重连状态恢复体验优化
 - 回收站（软删除恢复）、收藏/置顶
-- 通知设置（按类型订阅/免打扰）
+- 通知聚合/静默规则（按时间段）
 
 ### 2.3 系统内（P2 选做/加分，明确不承诺）
 
 - OT/CRDT 真协同合并
 - 版本历史/对比/回滚/锁定
 - 多格式导入导出（Word/PDF/Markdown）
-- 聊天、视频会议、屏幕共享、文件共享
+- 音视频深度集成（会议录制/屏幕标注/多方管理）
 - 移动端离线编辑与同步
 - 系统监控报警、健康报告、灰度开关
 
@@ -228,9 +231,11 @@
 #### 5.6.1 通知类型（P0）
 
 - 被分享文档 / 权限变更
+- 评论通知（新评论）
 - 评论被回复
 - 被@提及
 - 任务分配 / 完成
+- 文档编辑提醒
 
 #### 5.6.2 通知中心（P0）
 
@@ -238,9 +243,45 @@
 - 标记已读/全部已读
 - 点击跳转到对应文档/评论上下文（能定位到评论所在块）
 
+#### 5.6.3 通知分类与过滤（P0）
+
+- 支持按类型/已读状态/时间范围筛选
+- 可选：按文档筛选
+
+#### 5.6.4 通知设置（P0）
+
+- 按类型订阅开关
+- 免打扰（全局关闭）
+- 关闭后不落库/不推送（保留强一致）
+
 ------
 
-### 5.6 审计与日志（P0）
+### 5.7 通讯模块（P0）
+
+#### 5.7.1 内置聊天
+
+- 文档内发送/查看消息
+- 消息落库 + WS 广播 `chat.message`
+
+#### 5.7.2 视频会议集成
+
+- 支持创建会议并返回会议链接
+- 会议开始/结束状态通过 WS 广播
+
+#### 5.7.3 屏幕共享
+
+- 发起/结束屏幕共享
+- 共享状态通过 WS 广播 `screen.share.start/stop`
+
+#### 5.7.4 文件共享
+
+- 上传/下载文件
+- 共享记录可查询（历史记录）
+- 上传后 WS 广播 `file.shared`
+
+------
+
+### 5.8 审计与日志（P0）
 
 记录以下关键动作：
 
@@ -248,6 +289,31 @@
 - 文档创建/编辑/删除/重命名
 - ACL 变更（授权/撤销/变更权限）
 - 评论创建、@提及（可选）
+
+------
+
+### 5.9 系统管理模块（P0）
+
+#### 5.9.1 用户列表管理
+
+- 管理员可按关键字（邮箱/手机号/昵称）检索用户
+- 支持按系统角色/用户状态筛选与分页
+
+#### 5.9.2 用户权限调整
+
+- 管理员可调整用户系统角色（Admin/User）
+- 管理员可调整用户状态（正常/冻结/封禁）
+- 变更动作需记录审计日志
+
+#### 5.9.3 用户行为分析
+
+- 支持查看用户操作次数、最后活跃时间
+- 支持按 action 统计分布（登录/文档/评论/任务等）
+
+#### 5.9.4 用户满意度调查
+
+- 用户可提交评分（1~5）与可选反馈
+- 管理员可查看列表与统计（平均分、评分分布）
 
 ------
 
@@ -303,6 +369,12 @@
 - **Folder（若做文件夹）**：id、user_id、name、parent_id
 - **Comment**：id、doc_id、anchor（block_id/paragraph_index）、thread_id、author_id、content、created_at
 - **Notification**：id、user_id、type、payload、is_read、created_at
+- **NotificationSetting/Pref**：user_id、type、enabled、mute_all
+- **Task**：id、doc_id、creator_id、assignee_id、status、due_at、created_at
+- **ChatMessage**：id、doc_id、sender_id、content、created_at
+- **Meeting**：id、doc_id、host_id、title、provider、join_url、status、started_at、ended_at
+- **SharedFile**：id、doc_id、uploader_id、name、size、download_url、created_at
+- **UserSatisfaction**：id、user_id、rating、comment、created_at
 - **AuditLog**：id、actor_id、action、target_type、target_id、result、ip、created_at
 
 ------
@@ -313,16 +385,28 @@
 
 - Auth：`POST /auth/register` `POST /auth/login` `POST /auth/forgot` `POST /auth/reset`
 - User：`GET /users/me` `PUT /users/me`
-- Document：`POST /docs` `GET /docs/:id` `PUT /docs/:id`（带 base_version）`DELETE /docs/:id`
+- Document：`POST /docs` `GET /docs/:id` `PUT /docs/:id`（带 base_version）`PUT /docs/:id/autosave` `DELETE /docs/:id`
 - ACL：`GET /docs/:id/members` `PUT /docs/:id/members`（仅 Owner/Admin）
 - Folder/Search：`GET /docs?folder=...` `GET /search?q=...`
 - Comment：`POST /docs/:id/comments` `POST /comments/:id/replies`
-- Notification：`GET /notifications` `POST /notifications/read`
+- Task：`POST /docs/:id/tasks` `GET /docs/:id/tasks` `PUT /tasks/:id` `GET /tasks/assigned`
+- Notification：`GET /notifications` `POST /notifications/read` `GET/PUT /notifications/settings`
+- Chat：`POST /docs/:id/chat/messages` `GET /docs/:id/chat/messages`
+- Meeting：`POST /docs/:id/meetings` `GET /docs/:id/meetings` `GET /docs/:id/meetings/active` `POST /docs/:id/meetings/:meetingId/end`
+- ScreenShare：`POST /docs/:id/screen-share/start` `POST /docs/:id/screen-share/stop` `GET /docs/:id/screen-share`
+- FileShare：`POST /docs/:id/files` `GET /docs/:id/files` `GET /files/:id`
+- Survey：`POST /surveys`
+- Admin：`GET /admin/users` `PUT /admin/users/:id/role` `PUT /admin/users/:id/status` `GET /admin/users/:id/behavior` `GET /admin/users/:id/audit` `GET /admin/surveys` `GET /admin/surveys/stats`
 
 ### 9.2 WebSocket 事件（P0）
 
 - `presence.join` / `presence.leave`
 - `notification.push`（站内通知推送）
+- `doc.edit` / `cursor.update`
+- `chat.message`
+- `meeting.start` / `meeting.end`
+- `screen.share.start` / `screen.share.stop`
+- `file.shared`
 
 ------
 
@@ -353,6 +437,15 @@
 | UC-21  | 审计日志      | Owner/Admin  | P0     | 查看关键操作     | ACL变更/编辑可追溯            |
 | UC-22  | 创建任务      | Editor+      | P0     | 任务创建/分配    | 指派人收到通知                |
 | UC-23  | 完成任务      | Editor+      | P0     | 更新任务状态     | 完成通知送达                  |
+| UC-24  | 通知设置      | 用户         | P0     | 类型订阅/免打扰  | 关闭后不再收到通知            |
+| UC-25  | 文档内聊天    | Viewer+      | P0     | 发送聊天消息    | 实时收到消息且可追溯          |
+| UC-26  | 发起会议      | Editor+      | P0     | 创建会议/链接   | 会议开始广播给协作者          |
+| UC-27  | 屏幕共享      | Editor+      | P0     | 开始/结束共享   | 共享状态实时广播              |
+| UC-28  | 文件共享      | Editor+      | P0     | 上传/下载文件   | 列表可查且可下载              |
+| UC-29  | 用户列表管理  | Admin        | P0     | 用户检索/筛选   | 分页与筛选正确                 |
+| UC-30  | 用户权限调整  | Admin        | P0     | 角色/状态变更   | 审计记录存在                   |
+| UC-31  | 用户行为分析  | Admin        | P0     | 行为统计        | 统计与最后活跃时间正确         |
+| UC-32  | 满意度调查    | 用户/Admin   | P0     | 提交/统计       | 平均分与分布可查看             |
 
 > P1/P2 用例不在本期验收清单内，但可在文档末尾保留“预留编号”（用于后续迭代扩展）。
 
@@ -363,6 +456,9 @@
 1. A 注册登录 → 创建文档 → 分享给 B 为 Viewer
 2. B 打开文档：能看到 A 在线（presence）
 3. B 评论并 @A：A 收到站内通知并跳转到评论位置
+4. A 发送聊天消息：B 实时收到
+5. A 发起会议并分享链接：B 可进入会议
+6. A 开始屏幕共享并上传文件：B 收到共享与文件通知
 4. A 将 B 升级为 Editor：B 可编辑
 5. A、B 同时编辑并保存：后保存者触发 409 冲突提示（不覆盖）
 6. 展示审计日志：能看到 ACL 变更、编辑、评论等记录
@@ -371,8 +467,8 @@
 
 ## 12. 选做功能清单（保留到文档末尾，方便后续加分）
 
-- P1：回收站恢复、通知设置、光标同步、断线重连优化
-- P2：OT/CRDT、版本控制、导入导出、聊天/会议/屏幕共享、离线同步、监控报警
+- P1：回收站恢复、光标同步、断线重连优化、通知聚合/静默规则
+- P2：OT/CRDT、版本控制、导入导出、音视频深度集成、离线同步、监控报警
 
 ------
 

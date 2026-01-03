@@ -72,6 +72,9 @@ public class CommentService {
         saved.setThreadId(saved.getId());
         commentRepository.save(saved);
         processMentions(author, document, saved, mentions);
+        if (!author.getId().equals(document.getOwner().getId())) {
+            notificationService.notifyComment(document.getOwner(), document, saved, "New comment");
+        }
         auditService.record(author, "comment_create", "comment", saved.getId(), document, true, null, ip, null);
         return saved;
     }

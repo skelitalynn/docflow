@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,13 +23,16 @@ import java.util.Map;
 @Service
 public class NotificationService {
     private final NotificationRepository notificationRepository;
+    private final NotificationSettingsService settingsService;
     private final WebSocketNotifier notifier;
     private final ObjectMapper objectMapper;
 
     public NotificationService(NotificationRepository notificationRepository,
+                               NotificationSettingsService settingsService,
                                WebSocketNotifier notifier,
                                ObjectMapper objectMapper) {
         this.notificationRepository = notificationRepository;
+        this.settingsService = settingsService;
         this.notifier = notifier;
         this.objectMapper = objectMapper;
     }
@@ -53,8 +57,35 @@ public class NotificationService {
         createAndPush(target, document, task, NotificationType.TASK_COMPLETED, message);
     }
 
-    public Page<Notification> list(Long userId, Pageable pageable) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+    public void notifyDocumentEdited(User target, Document document, String message) {
+        createAndPush(target, document, (Comment) null, NotificationType.DOC_EDIT, message);
+    }
+
+    public void notifyComment(User target, Document document, Comment comment, String message) {
+        createAndPush(target, document, comment, NotificationType.COMMENT, message);
+    }
+
+    public Page<Notification> list(Long userId,
+                                   NotificationType type,
+                                   Boolean read,
+                                   LocalDateTime from,
+                                   LocalDateTime to,
+                                   Pageable pageable) {
+        Specification<Notification> spec = (root, query, cb) ->
+                cb.equal(root.get("user").get("id"), userId);
+        if (type != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("type"), type));
+        }
+        if (read != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("read"), read));
+        }
+        if (from != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), from));
+        }
+        if (to != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), to));
+        }
+        return notificationRepository.findAll(spec, pageable);
     }
 
     public long unreadCount(Long userId) {
@@ -112,6 +143,9 @@ public class NotificationService {
                                Task task,
                                NotificationType type,
                                String message) {
+        if (target == null || !settingsService.isEnabled(target.getId(), type)) {
+            return;
+        }
         String payload = toPayload(message, document, comment, task);
         Notification notification = Notification.builder()
                 .user(target)

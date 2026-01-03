@@ -232,6 +232,103 @@ CREATE TABLE IF NOT EXISTS t_notification (
     FOREIGN KEY (task_id) REFERENCES t_task(task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS t_notification_pref (
+  pref_id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  mute_all TINYINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (pref_id),
+  UNIQUE KEY uk_notification_pref_user (user_id),
+  CONSTRAINT fk_notification_pref_user
+    FOREIGN KEY (user_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_notification_setting (
+  setting_id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  notify_type TINYINT NOT NULL,
+  is_enabled TINYINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_id),
+  UNIQUE KEY uk_notification_setting_user_type (user_id, notify_type),
+  KEY idx_notification_setting_user (user_id),
+  CONSTRAINT fk_notification_setting_user
+    FOREIGN KEY (user_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_chat_message (
+  message_id BIGINT NOT NULL AUTO_INCREMENT,
+  doc_id BIGINT NOT NULL,
+  sender_id BIGINT NOT NULL,
+  content TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (message_id),
+  KEY idx_chat_doc (doc_id),
+  KEY idx_chat_sender (sender_id),
+  CONSTRAINT fk_chat_doc
+    FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
+  CONSTRAINT fk_chat_sender
+    FOREIGN KEY (sender_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_meeting (
+  meeting_id BIGINT NOT NULL AUTO_INCREMENT,
+  doc_id BIGINT NOT NULL,
+  host_id BIGINT NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  provider VARCHAR(32) NULL,
+  join_url VARCHAR(255) NULL,
+  status TINYINT NOT NULL,
+  started_at DATETIME NOT NULL,
+  ended_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (meeting_id),
+  KEY idx_meeting_doc (doc_id),
+  KEY idx_meeting_host (host_id),
+  KEY idx_meeting_status (status),
+  CONSTRAINT fk_meeting_doc
+    FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
+  CONSTRAINT fk_meeting_host
+    FOREIGN KEY (host_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_shared_file (
+  file_id BIGINT NOT NULL AUTO_INCREMENT,
+  doc_id BIGINT NOT NULL,
+  uploader_id BIGINT NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  storage_name VARCHAR(255) NOT NULL,
+  content_type VARCHAR(128) NULL,
+  size_bytes BIGINT NOT NULL,
+  download_url VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (file_id),
+  KEY idx_shared_file_doc (doc_id),
+  KEY idx_shared_file_uploader (uploader_id),
+  CONSTRAINT fk_shared_file_doc
+    FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
+  CONSTRAINT fk_shared_file_uploader
+    FOREIGN KEY (uploader_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_user_satisfaction (
+  survey_id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  rating TINYINT NOT NULL,
+  comment VARCHAR(1000) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (survey_id),
+  KEY idx_satisfaction_user (user_id),
+  CONSTRAINT fk_satisfaction_user
+    FOREIGN KEY (user_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS t_audit_log (
   audit_id BIGINT NOT NULL AUTO_INCREMENT,
   actor_id BIGINT NOT NULL,

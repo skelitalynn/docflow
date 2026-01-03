@@ -4,6 +4,10 @@ import com.docflow.audit.AuditService;
 import com.docflow.common.BadRequestException;
 import com.docflow.common.NotFoundException;
 import com.docflow.common.SystemRole;
+import com.docflow.common.UserStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -90,10 +94,7 @@ public class UserService {
         if (role == null) {
             throw new BadRequestException("Role is required");
         }
-        User operator = getById(operatorId);
-        if (operator.getSystemRole() != SystemRole.ADMIN) {
-            throw new AccessDeniedException("Admin required");
-        }
+        User operator = requireAdmin(operatorId);
         User target = getById(targetUserId);
         if (target.getSystemRole() == role) {
             return target;
@@ -104,6 +105,42 @@ public class UserService {
         auditService.record(operator, "system_role_update", "user", saved.getId(), null, true, null, ip,
                 Map.of("before", before.name(), "after", role.name()));
         return saved;
+    }
+
+    public User updateStatus(Long operatorId, Long targetUserId, UserStatus status, String ip) {
+        if (status == null) {
+            throw new BadRequestException("Status is required");
+        }
+        User operator = requireAdmin(operatorId);
+        User target = getById(targetUserId);
+        if (target.getStatus() == status) {
+            return target;
+        }
+        UserStatus before = target.getStatus();
+        target.setStatus(status);
+        User saved = userRepository.save(target);
+        auditService.record(operator, "user_status_update", "user", saved.getId(), null, true, null, ip,
+                Map.of("before", before.name(), "after", status.name()));
+        return saved;
+    }
+
+    public Page<User> listUsers(String keyword, SystemRole role, UserStatus status, Pageable pageable) {
+        Specification<User> spec = (root, query, cb) -> cb.conjunction();
+        if (keyword != null && !keyword.isBlank()) {
+            String like = "%" + keyword.trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("email")), like),
+                    cb.like(cb.lower(root.get("phone")), like),
+                    cb.like(cb.lower(root.get("nickname")), like)
+            ));
+        }
+        if (role != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("systemRole"), role));
+        }
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        return userRepository.findAll(spec, pageable);
     }
 
     private void ensureEmailAvailable(Long userId, String email) {
@@ -128,5 +165,13 @@ public class UserService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private User requireAdmin(Long operatorId) {
+        User operator = getById(operatorId);
+        if (operator.getSystemRole() != SystemRole.ADMIN) {
+            throw new AccessDeniedException("Admin required");
+        }
+        return operator;
     }
 }

@@ -3,7 +3,9 @@ package com.docflow.common;
 public enum NotificationType {
     SHARE(1),
     COMMENT_REPLY(2),
-    MENTION(3);
+    MENTION(3),
+    TASK_ASSIGNED(4),
+    TASK_COMPLETED(5);
 
     private final int code;
 

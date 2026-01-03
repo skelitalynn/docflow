@@ -4,6 +4,7 @@ import com.docflow.acl.DocMember;
 import com.docflow.acl.DocMemberRepository;
 import com.docflow.acl.AclService;
 import com.docflow.audit.AuditService;
+import com.docflow.collaboration.WebSocketNotifier;
 import com.docflow.common.BadRequestException;
 import com.docflow.common.ConflictException;
 import com.docflow.common.DocRole;
@@ -31,6 +32,7 @@ public class DocumentService {
     private final DocMemberRepository docMemberRepository;
     private final AclService aclService;
     private final AuditService auditService;
+    private final WebSocketNotifier notifier;
     private final DocumentTemplateRepository templateRepository;
     private final DocumentTagService documentTagService;
 
@@ -40,6 +42,7 @@ public class DocumentService {
                            DocMemberRepository docMemberRepository,
                            AclService aclService,
                            AuditService auditService,
+                           WebSocketNotifier notifier,
                            DocumentTemplateRepository templateRepository,
                            DocumentTagService documentTagService) {
         this.documentRepository = documentRepository;
@@ -48,6 +51,7 @@ public class DocumentService {
         this.docMemberRepository = docMemberRepository;
         this.aclService = aclService;
         this.auditService = auditService;
+        this.notifier = notifier;
         this.templateRepository = templateRepository;
         this.documentTagService = documentTagService;
     }
@@ -216,6 +220,14 @@ public class DocumentService {
                 .orElseThrow(() -> new NotFoundException("User not found"));
         auditService.record(actor, action, "doc", docId, document, true, null, ip,
                 Map.of("baseVersion", baseVersion, "newVersion", saved.getVersion()));
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("docId", saved.getId());
+        payload.put("actorId", actor.getId());
+        payload.put("content", saved.getContent());
+        payload.put("format", saved.getContentFormat() != null ? saved.getContentFormat().name() : DocFormat.RICH_TEXT.name());
+        payload.put("version", saved.getVersion());
+        payload.put("updatedAt", saved.getUpdatedAt());
+        notifier.broadcastToDoc(saved.getId(), "doc.sync", payload);
         return saved;
     }
 

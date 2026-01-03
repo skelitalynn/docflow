@@ -184,12 +184,36 @@ CREATE TABLE IF NOT EXISTS t_comment_mention (
     FOREIGN KEY (mentioned_by) REFERENCES t_user(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS t_task (
+  task_id BIGINT NOT NULL AUTO_INCREMENT,
+  doc_id BIGINT NOT NULL,
+  creator_id BIGINT NOT NULL,
+  assignee_id BIGINT NULL,
+  title VARCHAR(200) NOT NULL,
+  description LONGTEXT NULL,
+  status TINYINT NOT NULL,
+  due_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (task_id),
+  KEY idx_task_doc (doc_id),
+  KEY idx_task_assignee (assignee_id),
+  CONSTRAINT fk_task_doc
+    FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
+  CONSTRAINT fk_task_creator
+    FOREIGN KEY (creator_id) REFERENCES t_user(user_id),
+  CONSTRAINT fk_task_assignee
+    FOREIGN KEY (assignee_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS t_notification (
   notify_id BIGINT NOT NULL AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
   notify_type TINYINT NOT NULL,
   doc_id BIGINT NULL,
   comment_id BIGINT NULL,
+  task_id BIGINT NULL,
   is_read TINYINT NOT NULL,
   payload LONGTEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -197,12 +221,15 @@ CREATE TABLE IF NOT EXISTS t_notification (
   PRIMARY KEY (notify_id),
   KEY idx_notification_user (user_id),
   KEY idx_notification_read (user_id, is_read),
+  KEY idx_notification_task (task_id),
   CONSTRAINT fk_notification_user
     FOREIGN KEY (user_id) REFERENCES t_user(user_id),
   CONSTRAINT fk_notification_doc
     FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
   CONSTRAINT fk_notification_comment
-    FOREIGN KEY (comment_id) REFERENCES t_comment(comment_id)
+    FOREIGN KEY (comment_id) REFERENCES t_comment(comment_id),
+  CONSTRAINT fk_notification_task
+    FOREIGN KEY (task_id) REFERENCES t_task(task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS t_audit_log (

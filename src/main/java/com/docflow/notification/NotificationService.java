@@ -5,6 +5,7 @@ import com.docflow.common.NotificationType;
 import com.docflow.common.NotFoundException;
 import com.docflow.document.Document;
 import com.docflow.collaboration.WebSocketNotifier;
+import com.docflow.task.Task;
 import com.docflow.user.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,7 +34,7 @@ public class NotificationService {
     }
 
     public void notifyShare(User target, Document document, String message) {
-        createAndPush(target, document, null, NotificationType.SHARE, message);
+        createAndPush(target, document, (Comment) null, NotificationType.SHARE, message);
     }
 
     public void notifyCommentReply(User target, Document document, Comment comment, String message) {
@@ -42,6 +43,14 @@ public class NotificationService {
 
     public void notifyMention(User target, Document document, Comment comment, String message) {
         createAndPush(target, document, comment, NotificationType.MENTION, message);
+    }
+
+    public void notifyTaskAssigned(User target, Document document, Task task, String message) {
+        createAndPush(target, document, task, NotificationType.TASK_ASSIGNED, message);
+    }
+
+    public void notifyTaskCompleted(User target, Document document, Task task, String message) {
+        createAndPush(target, document, task, NotificationType.TASK_COMPLETED, message);
     }
 
     public Page<Notification> list(Long userId, Pageable pageable) {
@@ -86,12 +95,30 @@ public class NotificationService {
                                Comment comment,
                                NotificationType type,
                                String message) {
-        String payload = toPayload(message, document, comment);
+        createAndPush(target, document, comment, null, type, message);
+    }
+
+    private void createAndPush(User target,
+                               Document document,
+                               Task task,
+                               NotificationType type,
+                               String message) {
+        createAndPush(target, document, null, task, type, message);
+    }
+
+    private void createAndPush(User target,
+                               Document document,
+                               Comment comment,
+                               Task task,
+                               NotificationType type,
+                               String message) {
+        String payload = toPayload(message, document, comment, task);
         Notification notification = Notification.builder()
                 .user(target)
                 .type(type)
                 .document(document)
                 .comment(comment)
+                .task(task)
                 .read(false)
                 .payload(payload)
                 .build();
@@ -101,11 +128,12 @@ public class NotificationService {
         data.put("type", saved.getType().name());
         data.put("docId", document != null ? document.getId() : null);
         data.put("commentId", comment != null ? comment.getId() : null);
+        data.put("taskId", task != null ? task.getId() : null);
         data.put("payload", payload);
         notifier.sendToUser(target.getId(), "notification.push", data);
     }
 
-    private String toPayload(String message, Document document, Comment comment) {
+    private String toPayload(String message, Document document, Comment comment, Task task) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("message", message);
         if (document != null) {
@@ -114,6 +142,11 @@ public class NotificationService {
         }
         if (comment != null) {
             payload.put("commentId", comment.getId());
+        }
+        if (task != null) {
+            payload.put("taskId", task.getId());
+            payload.put("taskTitle", task.getTitle());
+            payload.put("status", task.getStatus().name());
         }
         try {
             return objectMapper.writeValueAsString(payload);

@@ -4,6 +4,7 @@ import com.docflow.common.BaseEntity;
 import com.docflow.common.NotificationType;
 import com.docflow.comment.Comment;
 import com.docflow.document.Document;
+import com.docflow.task.Task;
 import com.docflow.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,6 +51,10 @@ public class Notification extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "comment_id")
     private Comment comment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_id")
+    private Task task;
 
     @Column(name = "is_read", nullable = false)
     private boolean read;

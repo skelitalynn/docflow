@@ -30,6 +30,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
                                    ServerHttpResponse response,
                                    WebSocketHandler wsHandler,
                                    Map<String, Object> attributes) {
+        // 握手阶段完成鉴权，校验失败直接拒绝连接。
         String token = resolveToken(request);
         Optional<Long> userId = tokenService.resolveUserId(token);
         if (userId.isEmpty()) {
@@ -52,6 +53,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
     }
 
     private String resolveToken(ServerHttpRequest request) {
+        // 支持 Authorization Bearer、X-Auth-Token、URL 查询参数三种方式。
         HttpHeaders headers = request.getHeaders();
         String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader != null && authHeader.startsWith("Bearer ")) {

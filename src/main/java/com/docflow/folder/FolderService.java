@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 
+// Folder domain: personal folders with create/rename/delete and empty check.
 @Service
 public class FolderService {
     private final FolderRepository folderRepository;
@@ -29,10 +30,12 @@ public class FolderService {
         this.auditService = auditService;
     }
 
+    // List folders owned by current user.
     public List<Folder> list(Long userId) {
         return folderRepository.findByOwnerIdAndDeletedFalse(userId);
     }
 
+    // Create a folder (optional parent).
     @Transactional
     public Folder create(Long userId, String name, Long parentId, String ip) {
         if (name == null || name.isBlank()) {
@@ -56,6 +59,7 @@ public class FolderService {
         return saved;
     }
 
+    // Rename a folder (owner only).
     @Transactional
     public Folder rename(Long userId, Long folderId, String name, String ip) {
         if (name == null || name.isBlank()) {
@@ -70,6 +74,7 @@ public class FolderService {
         return saved;
     }
 
+    // Soft delete only when folder is empty.
     @Transactional
     public void delete(Long userId, Long folderId, String ip) {
         Folder folder = folderRepository.findByIdAndOwnerIdAndDeletedFalse(folderId, userId)

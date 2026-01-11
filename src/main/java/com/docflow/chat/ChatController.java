@@ -28,10 +28,12 @@ public class ChatController {
         this.chatService = chatService;
     }
 
+    //发送聊天信息
     @PostMapping("/docs/{id}/chat/messages")
     public ChatMessageResponse send(@PathVariable("id") Long docId,
                                     @Valid @RequestBody ChatSendRequest request,
                                     HttpServletRequest httpRequest) {
+        //知道消息信息
         ChatMessage message = chatService.send(SecurityUtils.getCurrentUserId(),
                 docId,
                 request.content(),
@@ -39,14 +41,20 @@ public class ChatController {
         return toResponse(message);
     }
 
+    //查询聊天记录
     @GetMapping("/docs/{id}/chat/messages")
     public PageResponse<ChatMessageResponse> list(@PathVariable("id") Long docId,
+                                                //分页设计，防止大结果集
                                                   @RequestParam(value = "page", defaultValue = "0") int page,
                                                   @RequestParam(value = "size", defaultValue = "20") int size) {
+        //前端请求历史聊天                                            
         Page<ChatMessage> messages = chatService.list(SecurityUtils.getCurrentUserId(),
                 docId,
                 PageRequest.of(page, size));
+
+        //后端返回当前页的消息和页码信息
         List<ChatMessageResponse> items = messages.map(this::toResponse).getContent();
+        //API封装统一
         return new PageResponse<>(items, messages.getNumber(), messages.getSize(),
                 messages.getTotalElements(), messages.getTotalPages());
     }

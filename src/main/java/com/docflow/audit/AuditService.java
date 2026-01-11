@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
+// 审计服务：统一写入操作日志，供追溯与行为分析使用
 @Service
 public class AuditService {
     private final AuditLogRepository auditLogRepository;
@@ -27,6 +28,7 @@ public class AuditService {
                        String errorMsg,
                        String ip,
                        Map<String, Object> meta) {
+        // 将附加信息序列化为 JSON，便于后续检索与统计
         String metaJson = null;
         if (meta != null && !meta.isEmpty()) {
             try {
@@ -34,6 +36,7 @@ public class AuditService {
             } catch (JsonProcessingException ignored) {
             }
         }
+        // 构建审计日志实体并落库
         AuditLog log = AuditLog.builder()
                 .actor(actor)
                 .action(action)

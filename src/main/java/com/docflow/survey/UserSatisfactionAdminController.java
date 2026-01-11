@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// 满意度调查（管理员查看与统计）
 @RestController
 @RequestMapping("/admin/surveys")
 public class UserSatisfactionAdminController {
@@ -23,7 +24,9 @@ public class UserSatisfactionAdminController {
     @GetMapping
     public PageResponse<UserSatisfactionAdminResponse> list(@RequestParam(value = "page", defaultValue = "0") int page,
                                                             @RequestParam(value = "size", defaultValue = "20") int size) {
+        // 分页获取满意度记录列表
         Page<UserSatisfaction> surveys = satisfactionService.list(PageRequest.of(page, size));
+        // 转换为管理端输出 DTO
         List<UserSatisfactionAdminResponse> items = surveys.map(this::toResponse).getContent();
         return new PageResponse<>(items, surveys.getNumber(), surveys.getSize(),
                 surveys.getTotalElements(), surveys.getTotalPages());
@@ -31,6 +34,7 @@ public class UserSatisfactionAdminController {
 
     @GetMapping("/stats")
     public StatsResponse stats() {
+        // 统计平均分与各评分分布
         UserSatisfactionService.Stats stats = satisfactionService.stats();
         return new StatsResponse(stats.averageRating(), stats.counts());
     }

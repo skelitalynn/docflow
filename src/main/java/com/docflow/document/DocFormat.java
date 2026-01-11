@@ -1,5 +1,6 @@
 package com.docflow.document;
 
+// Content format enum stored as integer code via converter.
 public enum DocFormat {
     RICH_TEXT(1),
     MARKDOWN(2),

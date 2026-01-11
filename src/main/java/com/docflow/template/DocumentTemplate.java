@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// Template entity used to seed new documents.
 @Entity
 @Table(name = "t_doc_template")
 @Getter

@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
+// Token 认证过滤器：解析请求中的 token，建立 SecurityContext。
 @Component
 public class TokenAuthenticationFilter extends OncePerRequestFilter {
     private final AuthTokenService tokenService;
@@ -36,6 +37,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         if (tokenOpt.isPresent()) {
             tokenService.resolveUserId(tokenOpt.get())
                     .flatMap(userRepository::findById)
+                    // 账号被禁用时不建立认证上下文。
                     .filter(user -> user.getStatus() == UserStatus.ACTIVE)
                     .ifPresent(this::authenticate);
         }
@@ -43,6 +45,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private Optional<String> resolveToken(HttpServletRequest request) {
+        // 兼容标准 Authorization 头与备用 Token 头。
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return Optional.of(authHeader.substring(7));

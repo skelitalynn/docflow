@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
+// Document-tag mapping persistence.
 public interface DocTagRepository extends JpaRepository<DocTag, Long> {
     List<DocTag> findByDocumentId(Long documentId);
 

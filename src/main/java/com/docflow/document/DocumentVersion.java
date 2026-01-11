@@ -1,4 +1,4 @@
-package com.docflow.survey;
+package com.docflow.document;
 
 import com.docflow.common.BaseEntity;
 import com.docflow.user.User;
@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -17,29 +18,38 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// 用户满意度调查实体：记录评分与可选反馈
+// Snapshot of document content for history/restore (manual or autosave).
 @Entity
-@Table(name = "t_user_satisfaction")
+@Table(name = "t_doc_version")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserSatisfaction extends BaseEntity {
+public class DocumentVersion extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "survey_id")
+    @Column(name = "version_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "doc_id", nullable = false)
+    private Document document;
 
-    // 评分：1~5
+    @Column(name = "version_number", nullable = false)
+    private int versionNumber;
+
+    @Lob
     @Column(nullable = false)
-    private int rating;
+    private String content;
 
-    // 文字反馈：可选，长度最多 1000
-    @Column(length = 1000)
-    private String comment;
+    @Column(name = "content_format", nullable = false)
+    private DocFormat contentFormat;
+
+    @Column(name = "is_autosave", nullable = false)
+    private boolean autosave;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_id", nullable = false)
+    private User actor;
 }

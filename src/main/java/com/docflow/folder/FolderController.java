@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// Folder APIs: list/create/rename/delete.
 @RestController
 @RequestMapping("/folders")
 public class FolderController {
@@ -25,6 +26,7 @@ public class FolderController {
         this.folderService = folderService;
     }
 
+    // List current user's folders.
     @GetMapping
     public List<FolderResponse> list() {
         return folderService.list(SecurityUtils.getCurrentUserId()).stream()
@@ -35,6 +37,7 @@ public class FolderController {
                 .toList();
     }
 
+    // Create a folder under optional parent.
     @PostMapping
     public FolderResponse create(@Valid @RequestBody CreateFolderRequest request, HttpServletRequest httpRequest) {
         Folder folder = folderService.create(SecurityUtils.getCurrentUserId(),
@@ -45,6 +48,7 @@ public class FolderController {
                 folder.getParent() != null ? folder.getParent().getId() : null);
     }
 
+    // Rename a folder.
     @PutMapping("/{id}")
     public FolderResponse rename(@PathVariable("id") Long id,
                                  @Valid @RequestBody RenameFolderRequest request,
@@ -54,6 +58,7 @@ public class FolderController {
                 folder.getParent() != null ? folder.getParent().getId() : null);
     }
 
+    // Delete folder (only if empty).
     @DeleteMapping("/{id}")
     public MessageResponse delete(@PathVariable("id") Long id, HttpServletRequest httpRequest) {
         folderService.delete(SecurityUtils.getCurrentUserId(), id, clientIp(httpRequest));

@@ -21,6 +21,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+// Document entity with soft delete + versioning metadata.
 @Entity
 @Table(name = "t_document")
 @Getter
@@ -59,6 +60,7 @@ public class Document extends BaseEntity {
     @Column(nullable = false)
     private int version;
 
+    // Soft delete marker (keeps history for audit/restore).
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 

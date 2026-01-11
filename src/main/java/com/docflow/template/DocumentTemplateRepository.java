@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
+// Template persistence with access filters (owner/public).
 public interface DocumentTemplateRepository extends JpaRepository<DocumentTemplate, Long> {
     @Query("""
             select t from DocumentTemplate t

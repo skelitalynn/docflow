@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS t_document (
   KEY idx_document_owner (owner_id),
   KEY idx_document_folder (folder_id),
   KEY idx_document_updated (updated_at),
+  FULLTEXT KEY ft_document_title_content (title, content),
   CONSTRAINT fk_document_creator
     FOREIGN KEY (creator_id) REFERENCES t_user(user_id),
   CONSTRAINT fk_document_owner
@@ -123,6 +124,27 @@ CREATE TABLE IF NOT EXISTS t_doc_template (
   KEY idx_template_public (is_public),
   CONSTRAINT fk_template_owner
     FOREIGN KEY (owner_user_id) REFERENCES t_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS t_doc_version (
+  version_id BIGINT NOT NULL AUTO_INCREMENT,
+  doc_id BIGINT NOT NULL,
+  version_number INT NOT NULL,
+  content LONGTEXT NOT NULL,
+  content_format TINYINT NOT NULL,
+  is_autosave TINYINT NOT NULL,
+  actor_id BIGINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (version_id),
+  KEY idx_doc_version_doc (doc_id),
+  KEY idx_doc_version_doc_version (doc_id, version_number),
+  KEY idx_doc_version_autosave (doc_id, is_autosave),
+  KEY idx_doc_version_actor (actor_id),
+  CONSTRAINT fk_doc_version_doc
+    FOREIGN KEY (doc_id) REFERENCES t_document(doc_id),
+  CONSTRAINT fk_doc_version_actor
+    FOREIGN KEY (actor_id) REFERENCES t_user(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS t_doc_member (

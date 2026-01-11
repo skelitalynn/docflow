@@ -37,6 +37,7 @@ public class DocumentService {
     private final NotificationService notificationService;
     private final DocumentTemplateRepository templateRepository;
     private final DocumentTagService documentTagService;
+    private final DocumentVersionRepository versionRepository;
 
     public DocumentService(DocumentRepository documentRepository,
                            UserRepository userRepository,
@@ -47,7 +48,8 @@ public class DocumentService {
                            WebSocketNotifier notifier,
                            NotificationService notificationService,
                            DocumentTemplateRepository templateRepository,
-                           DocumentTagService documentTagService) {
+                           DocumentTagService documentTagService,
+                           DocumentVersionRepository versionRepository) {
         this.documentRepository = documentRepository;
         this.userRepository = userRepository;
         this.folderRepository = folderRepository;
@@ -58,6 +60,7 @@ public class DocumentService {
         this.notificationService = notificationService;
         this.templateRepository = templateRepository;
         this.documentTagService = documentTagService;
+        this.versionRepository = versionRepository;
     }
 
     @Transactional
@@ -69,13 +72,17 @@ public class DocumentService {
                            DocFormat format,
                            java.util.List<Long> tagIds,
                            String ip) {
+
+        //找创建者
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         Folder folder = null;
+        //文件夹可选，但是要校验userId
         if (folderId != null) {
             folder = folderRepository.findByIdAndOwnerIdAndDeletedFalse(folderId, userId)
                     .orElseThrow(() -> new BadRequestException("Folder not found"));
         }
+        //模版有权限才能用
         DocumentTemplate template = null;
         if (templateId != null) {
             template = templateRepository.findAccessibleById(templateId, userId)
@@ -97,6 +104,7 @@ public class DocumentService {
         }
         String safeTitle = (resolvedTitle == null || resolvedTitle.isBlank()) ? "Untitled" : resolvedTitle;
         DocFormat safeFormat = resolvedFormat == null ? DocFormat.RICH_TEXT : resolvedFormat;
+        //真正创建Document
         Document document = Document.builder()
                 .title(safeTitle)
                 .content(resolvedContent == null ? "" : resolvedContent)
@@ -108,6 +116,7 @@ public class DocumentService {
                 .deleted(false)
                 .build();
         Document saved = documentRepository.save(document);
+        //创建DocMember，把自己加入成员表并设置OWNER
         DocMember owner = DocMember.builder()
                 .document(saved)
                 .user(creator)
@@ -115,17 +124,22 @@ public class DocumentService {
                 .grantedBy(creator)
                 .build();
         docMemberRepository.save(owner);
+        //记录审计+记录版本
         auditService.record(creator, "doc_create", "doc", saved.getId(), saved, true, null, ip, null);
+        recordVersion(saved, creator, false);
         if (tagIds != null && !tagIds.isEmpty()) {
+            //绑定标签
             documentTagService.setTags(saved.getId(), userId, tagIds, ip);
         }
         return saved;
     }
 
+    //打开文档
     public DocumentWithRole getDocument(Long userId, Long docId) {
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         DocRole role = aclService.requireRole(userId, docId, DocRole.VIEWER);
+        //返回文档+user权限
         return new DocumentWithRole(document, role);
     }
 
@@ -156,6 +170,7 @@ public class DocumentService {
         }
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
+        //需要EDITOR权限修改标题
         aclService.requireRole(userId, docId, DocRole.EDITOR);
         document.setTitle(title);
         Document saved = documentRepository.save(document);
@@ -166,11 +181,15 @@ public class DocumentService {
         return saved;
     }
 
+    //删除文档：软删除
     @Transactional
     public void delete(Long userId, Long docId, String ip) {
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         aclService.requireRole(userId, docId, DocRole.OWNER);
+        //只有OWNER能删除
+        //打标记+时间
+        //可以恢复/审计/避免误删 
         document.setDeleted(true);
         document.setDeletedAt(LocalDateTime.now());
         documentRepository.save(document);
@@ -190,10 +209,12 @@ public class DocumentService {
                                  java.time.LocalDateTime to,
                                  Long tagId,
                                  Pageable pageable) {
-        String trimmed = keyword == null || keyword.isBlank() ? null : keyword;
-        return documentRepository.searchAccessibleDocuments(userId, trimmed, authorId, from, to, tagId, pageable);
+        String trimmed = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        //只返回有权限的文档
+        return documentRepository.searchAccessibleDocumentsFullText(userId, trimmed, authorId, from, to, tagId, pageable);
     }
 
+    //保存文档内容
     private Document saveContent(Long userId,
                                  Long docId,
                                  String content,
@@ -201,14 +222,23 @@ public class DocumentService {
                                  DocFormat format,
                                  String ip,
                                  String action) {
+
+        //content不为空
         if (content == null) {
             throw new BadRequestException("Content is required");
         }
+        //文档存在且未删除
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
+
+        //EDITOR权限
         aclService.requireRole(userId, docId, DocRole.EDITOR);
+        //格式
         DocFormat currentFormat = document.getContentFormat() == null ? DocFormat.RICH_TEXT : document.getContentFormat();
         DocFormat resolvedFormat = format == null ? currentFormat : format;
+        //版本匹配更新
+        //前端保存时带着baseVersion,乐观锁
+        //只有当数据库的version与baseVersion相等才更新
         int updated = documentRepository.updateContentIfVersionMatches(docId, content, baseVersion, resolvedFormat);
         if (updated == 0) {
             Document current = documentRepository.findByIdAndDeletedFalse(docId)
@@ -218,12 +248,14 @@ public class DocumentService {
                         Map.of("currentVersion", current.getVersion(), "updatedAt", current.getUpdatedAt()));
             }
         }
+        //保存成功后：再检查一遍拿到最新文档（拿到version和updatedAt）
         Document saved = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         auditService.record(actor, action, "doc", docId, document, true, null, ip,
                 Map.of("baseVersion", baseVersion, "newVersion", saved.getVersion()));
+        recordVersion(saved, actor, "doc_autosave".equals(action));
         Map<String, Object> payload = new java.util.HashMap<>();
         payload.put("docId", saved.getId());
         payload.put("actorId", actor.getId());
@@ -231,8 +263,9 @@ public class DocumentService {
         payload.put("format", saved.getContentFormat() != null ? saved.getContentFormat().name() : DocFormat.RICH_TEXT.name());
         payload.put("version", saved.getVersion());
         payload.put("updatedAt", saved.getUpdatedAt());
+        //WebSocket 同步给在线协作者（doc.sync）
         notifier.broadcastToDoc(saved.getId(), "doc.sync", payload);
-        if ("doc_save".equals(action)) {
+        if ("doc_save".equals(action) || "doc_restore".equals(action)) {
             notifyDocEdited(actor, saved);
         }
         return saved;
@@ -246,6 +279,50 @@ public class DocumentService {
             }
             notificationService.notifyDocumentEdited(target, document, "Document updated");
         }
+    }
+
+    
+    //按是否 autosave 过滤版本列表（给“历史版本”页面用）
+    public Page<DocumentVersion> listVersions(Long userId,
+                                              Long docId,
+                                              Boolean autosave,
+                                              Pageable pageable) {
+        aclService.requireRole(userId, docId, DocRole.VIEWER);
+        if (autosave == null) {
+            return versionRepository.findByDocumentId(docId, pageable);
+        }
+        return versionRepository.findByDocumentIdAndAutosave(docId, autosave, pageable);
+    }
+
+    //拿某个版本（用于预览/恢复）
+    public DocumentVersion getVersion(Long userId, Long docId, Long versionId) {
+        aclService.requireRole(userId, docId, DocRole.VIEWER);
+        return versionRepository.findByIdAndDocumentId(versionId, docId)
+                .orElseThrow(() -> new NotFoundException("Version not found"));
+    }
+
+
+    //取出历史版本内容，走一次 saveContent（action=doc_restore）
+    @Transactional
+    public Document restoreVersion(Long userId,
+                                   Long docId,
+                                   Long versionId,
+                                   int baseVersion,
+                                   String ip) {
+        DocumentVersion version = getVersion(userId, docId, versionId);
+        return saveContent(userId, docId, version.getContent(), baseVersion, version.getContentFormat(), ip, "doc_restore");
+    }
+
+    private void recordVersion(Document document, User actor, boolean autosave) {
+        DocumentVersion version = DocumentVersion.builder()
+                .document(document)
+                .versionNumber(document.getVersion())
+                .content(document.getContent())
+                .contentFormat(document.getContentFormat())
+                .autosave(autosave)
+                .actor(actor)
+                .build();
+        versionRepository.save(version);
     }
 
     public record DocumentWithRole(Document document, DocRole role) {

@@ -12,6 +12,9 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+
+//通知设置
+//全局静音（muteAll）+ 单类型开关（type enabled），创建/更新设置记录。
 @Service
 public class NotificationSettingsService {
     private final NotificationPreferenceRepository preferenceRepository;
@@ -26,7 +29,9 @@ public class NotificationSettingsService {
         this.userRepository = userRepository;
     }
 
+    //读取通知
     public NotificationSettingsSnapshot getSettings(Long userId) {
+        //全局静音开关
         boolean muteAll = preferenceRepository.findByUserId(userId)
                 .map(NotificationPreference::isMuteAll)
                 .orElse(false);
@@ -34,6 +39,8 @@ public class NotificationSettingsService {
         for (NotificationSetting setting : settingRepository.findByUserId(userId)) {
             enabledMap.put(setting.getType(), setting.isEnabled());
         }
+        //DTO 聚合,把所有 NotificationType 都补全
+        //不管数据库有没有，都要给前端一个完整列表
         List<NotificationSettingsSnapshot.TypeSetting> types = new ArrayList<>();
         for (NotificationType type : NotificationType.values()) {
             boolean enabled = enabledMap.getOrDefault(type, true);
@@ -66,6 +73,7 @@ public class NotificationSettingsService {
         settingRepository.save(setting);
         return getSettings(userId);
     }
+
 
     public boolean isEnabled(Long userId, NotificationType type) {
         if (type == null) {

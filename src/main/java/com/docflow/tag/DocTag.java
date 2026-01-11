@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// Join entity between document and tag.
 @Entity
 @Table(name = "t_doc_tag", uniqueConstraints = {
         @UniqueConstraint(name = "uk_doc_tag_doc_tag", columnNames = {"doc_id", "tag_id"})

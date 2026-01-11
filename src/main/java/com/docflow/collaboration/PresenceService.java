@@ -15,8 +15,11 @@ import java.util.stream.Collectors;
 
 @Service
 public class PresenceService {
+    // docId -> (sessionId -> member)，用于广播在线成员列表。
     private final Map<Long, Map<String, PresenceMember>> docSessions = new ConcurrentHashMap<>();
+    // sessionId -> docId，便于断开时快速清理。
     private final Map<String, Long> sessionDoc = new ConcurrentHashMap<>();
+    // sessionId -> 最近心跳时间。
     private final Map<String, Instant> heartbeat = new ConcurrentHashMap<>();
 
     public void join(Long docId, String sessionId, Long userId, String nickname) {
@@ -51,6 +54,7 @@ public class PresenceService {
         if (sessions == null) {
             return Collections.emptyList();
         }
+        // 同一用户可能多端连接，这里按 userId 去重。
         return sessions.values().stream()
                 .collect(Collectors.toMap(PresenceMember::userId, member -> member, (a, b) -> a))
                 .values()
@@ -70,6 +74,7 @@ public class PresenceService {
         Instant cutoff = Instant.now().minus(ttl);
         Map<Long, List<String>> removedByDoc = new HashMap<>();
         for (Map.Entry<String, Instant> entry : new ArrayList<>(heartbeat.entrySet())) {
+            // 超过 TTL 未心跳的会话视为离线。
             if (entry.getValue().isBefore(cutoff)) {
                 String sessionId = entry.getKey();
                 Long docId = leave(sessionId);

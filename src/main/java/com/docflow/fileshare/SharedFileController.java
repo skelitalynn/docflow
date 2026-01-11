@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// 文件共享接口：上传、列表、下载，统一走权限校验与可审计的服务层。
 @RestController
 @RequestMapping
 public class SharedFileController {
@@ -41,6 +42,7 @@ public class SharedFileController {
     public SharedFileResponse upload(@PathVariable("id") Long docId,
                                      @NotNull @RequestParam("file") MultipartFile file,
                                      HttpServletRequest httpRequest) {
+        // 上传文件：由服务层校验文档权限、持久化元数据并广播给协作者。
         SharedFile saved = fileService.upload(SecurityUtils.getCurrentUserId(),
                 docId,
                 file,
@@ -52,6 +54,7 @@ public class SharedFileController {
     public PageResponse<SharedFileResponse> list(@PathVariable("id") Long docId,
                                                  @RequestParam(value = "page", defaultValue = "0") int page,
                                                  @RequestParam(value = "size", defaultValue = "20") int size) {
+        // 列表只返回有权限访问的文档文件，分页控制返回数量。
         Page<SharedFile> files = fileService.list(SecurityUtils.getCurrentUserId(),
                 docId,
                 PageRequest.of(page, size));
@@ -62,6 +65,7 @@ public class SharedFileController {
 
     @GetMapping("/files/{id}")
     public ResponseEntity<Resource> download(@PathVariable("id") Long fileId) {
+        // 下载文件：先做权限校验，再以附件形式返回。
         SharedFile file = fileService.get(SecurityUtils.getCurrentUserId(), fileId);
         Path path = storageService.resolvePath(file.getStorageName());
         Resource resource = toResource(path);
@@ -87,6 +91,7 @@ public class SharedFileController {
 
     private Resource toResource(Path path) {
         try {
+            // 兜底校验：磁盘不存在时直接报错。
             if (!Files.exists(path)) {
                 throw new IllegalStateException("File not found on disk");
             }
@@ -97,6 +102,7 @@ public class SharedFileController {
     }
 
     private String clientIp(HttpServletRequest request) {
+        // 兼容代理场景：优先读取 X-Forwarded-For。
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0];

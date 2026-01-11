@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// 协作 WebSocket 处理器，接收前端发来的协作消息
 @Component
 public class CollaborationWebSocketHandler extends TextWebSocketHandler {
     private static final Duration PRESENCE_TTL = Duration.ofSeconds(30);
@@ -40,6 +41,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         this.aclService = aclService;
     }
 
+    // 在 WebSocket 连接建立时注册用户和会话，并发送心跳
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         Long userId = (Long) session.getAttributes().get("userId");
@@ -49,12 +51,14 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    //接收消息总入口
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         WsMessage incoming = objectMapper.readValue(message.getPayload(), WsMessage.class);
         if (incoming.getType() == null) {
             return;
         }
+        //用switch做分发，将JSON变成Java对象
         switch (incoming.getType()) {
             case "presence.join" -> handleJoin(session, incoming.getData());
             case "presence.leave" -> handleLeave(session);
@@ -65,22 +69,27 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
             }
         }
     }
-
+    
+    //断开连接
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Long docId = presenceService.leave(session.getId());
+        //从列表删除用户
         sessionRegistry.remove(session.getId());
         if (docId != null) {
             Long userId = (Long) session.getAttributes().get("userId");
             if (userId != null) {
+                //删除光标
                 cursorService.remove(docId, userId);
                 broadcastCursors(docId);
             }
+            //通知所有人
             broadcastPresence(docId, "presence.leave");
         }
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 10)
+    //定时清理
     public void cleanupStalePresence() {
         Map<Long, List<String>> removed = presenceService.removeStaleSessions(PRESENCE_TTL);
         for (Long docId : removed.keySet()) {
@@ -92,6 +101,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    //加入文档协作
     private void handleJoin(WebSocketSession session, Map<String, Object> data) {
         Long userId = (Long) session.getAttributes().get("userId");
         String nickname = (String) session.getAttributes().get("nickname");
@@ -99,10 +109,13 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         if (userId == null || docId == null) {
             return;
         }
+        //如果user之前在别的文档，离开
+        //一个人同时只能协作一篇文档
         Long previousDoc = presenceService.leave(session.getId());
         if (previousDoc != null && !previousDoc.equals(docId)) {
             broadcastPresence(previousDoc, "presence.leave");
         }
+        //权限检查，至少为VIEWER
         DocRole role = aclService.requireRole(userId, docId, DocRole.VIEWER);
         if (role == null) {
             return;
@@ -124,6 +137,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    //用户在编辑器移动光标
     private void handleCursorUpdate(WebSocketSession session, Map<String, Object> data) {
         Long userId = (Long) session.getAttributes().get("userId");
         String nickname = (String) session.getAttributes().get("nickname");
@@ -133,11 +147,14 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         if (userId == null || docId == null || line == null || column == null) {
             return;
         }
+        //查看是不是EDITOR
         aclService.requireRole(userId, docId, DocRole.EDITOR);
+        //将最新光标发给所有人
         cursorService.update(docId, userId, nickname, line, column);
         broadcastCursors(docId);
     }
 
+    //编辑内容
     private void handleDocEdit(WebSocketSession session, Map<String, Object> data) {
         Long userId = (Long) session.getAttributes().get("userId");
         Long docId = asLong(data, "docId");
@@ -151,6 +168,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         payload.put("content", data != null ? data.get("content") : null);
         payload.put("format", data != null ? data.get("format") : null);
         payload.put("baseVersion", data != null ? data.get("baseVersion") : null);
+        //将某个人在编辑的内容广播给别人
         notifier.broadcastToDoc(docId, "doc.edit", payload);
     }
 

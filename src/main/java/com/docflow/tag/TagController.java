@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// Tag APIs: tag CRUD + document tag assignment.
 @RestController
 @RequestMapping
 public class TagController {
@@ -27,6 +28,7 @@ public class TagController {
         this.documentTagService = documentTagService;
     }
 
+    // List current user's tags.
     @GetMapping("/tags")
     public List<TagResponse> list() {
         return tagService.list(SecurityUtils.getCurrentUserId()).stream()
@@ -34,12 +36,14 @@ public class TagController {
                 .toList();
     }
 
+    // Create a tag.
     @PostMapping("/tags")
     public TagResponse create(@Valid @RequestBody CreateTagRequest request, HttpServletRequest httpRequest) {
         Tag tag = tagService.create(SecurityUtils.getCurrentUserId(), request.name(), clientIp(httpRequest));
         return new TagResponse(tag.getId(), tag.getName());
     }
 
+    // Rename a tag.
     @PutMapping("/tags/{id}")
     public TagResponse rename(@PathVariable("id") Long id,
                               @Valid @RequestBody CreateTagRequest request,
@@ -48,12 +52,14 @@ public class TagController {
         return new TagResponse(tag.getId(), tag.getName());
     }
 
+    // Delete a tag.
     @DeleteMapping("/tags/{id}")
     public MessageResponse delete(@PathVariable("id") Long id, HttpServletRequest httpRequest) {
         tagService.delete(SecurityUtils.getCurrentUserId(), id, clientIp(httpRequest));
         return new MessageResponse("ok");
     }
 
+    // List tags bound to a document.
     @GetMapping("/docs/{id}/tags")
     public List<TagResponse> listDocTags(@PathVariable("id") Long docId) {
         return documentTagService.listTags(docId, SecurityUtils.getCurrentUserId()).stream()
@@ -61,6 +67,7 @@ public class TagController {
                 .toList();
     }
 
+    // Replace tags bound to a document (OWNER/ADMIN only).
     @PutMapping("/docs/{id}/tags")
     public MessageResponse setDocTags(@PathVariable("id") Long docId,
                                       @Valid @RequestBody DocTagRequest request,

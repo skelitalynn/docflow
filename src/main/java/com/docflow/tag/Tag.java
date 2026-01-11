@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// Tag entity (unique per owner).
 @Entity
 @Table(name = "t_tag", uniqueConstraints = {
         @UniqueConstraint(name = "uk_tag_owner_name", columnNames = {"owner_user_id", "name"})

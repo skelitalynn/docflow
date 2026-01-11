@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+// 头像文件存储：限制大小/类型并保存到本地 uploads/avatars。
 @Service
 public class AvatarStorageService {
     private static final long MAX_BYTES = 2 * 1024 * 1024;
@@ -25,6 +26,7 @@ public class AvatarStorageService {
     private final Path baseDir = Paths.get("uploads", "avatars");
 
     public String store(MultipartFile file) {
+        // 限制大小与类型，避免非法文件上传。
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Avatar file required");
         }
@@ -40,6 +42,7 @@ public class AvatarStorageService {
         try {
             Files.createDirectories(baseDir);
             Path target = baseDir.resolve(filename).normalize();
+            // 防止路径穿越写入。
             if (!target.startsWith(baseDir)) {
                 throw new BadRequestException("Invalid file path");
             }

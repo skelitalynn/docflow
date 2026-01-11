@@ -41,6 +41,7 @@ public class ChatService {
         this.auditService = auditService;
     }
 
+    //发送聊天消息
     @Transactional
     public ChatMessage send(Long userId, Long docId, String content, String ip) {
         if (content == null || content.isBlank()) {
@@ -51,13 +52,18 @@ public class ChatService {
         aclService.requireRole(userId, docId, DocRole.VIEWER);
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
+
+        //构建聊天实体
         ChatMessage message = ChatMessage.builder()
                 .document(document)
                 .sender(sender)
                 .content(content.trim())
                 .build();
+        //聊天内容入库
         ChatMessage saved = messageRepository.save(message);
 
+        //构建websocket时间payload
+        //不用entity，避免依赖后端领域模型，降低耦合
         Map<String, Object> payload = new HashMap<>();
         payload.put("id", saved.getId());
         payload.put("docId", docId);
@@ -70,6 +76,7 @@ public class ChatService {
         return saved;
     }
 
+    //分页查询聊天记录
     public Page<ChatMessage> list(Long userId, Long docId, Pageable pageable) {
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));

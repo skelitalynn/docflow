@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.Objects;
 
+// Template domain: create/update/delete with owner/admin guard.
 @Service
 public class DocumentTemplateService {
     private final DocumentTemplateRepository templateRepository;
@@ -30,15 +31,18 @@ public class DocumentTemplateService {
         this.auditService = auditService;
     }
 
+    // List accessible templates (own + public).
     public Page<DocumentTemplate> list(Long userId, Pageable pageable) {
         return templateRepository.findAccessible(userId, pageable);
     }
 
+    // Fetch a template if it is owned or public.
     public DocumentTemplate getAccessible(Long userId, Long templateId) {
         return templateRepository.findAccessibleById(templateId, userId)
                 .orElseThrow(() -> new NotFoundException("Template not found"));
     }
 
+    // Create a new template with chosen format.
     @Transactional
     public DocumentTemplate create(Long userId,
                                    String title,
@@ -69,6 +73,7 @@ public class DocumentTemplateService {
         return saved;
     }
 
+    // Update template fields (owner or admin only).
     @Transactional
     public DocumentTemplate update(Long userId,
                                    Long templateId,
@@ -106,6 +111,7 @@ public class DocumentTemplateService {
         return saved;
     }
 
+    // Delete template (owner or admin only).
     @Transactional
     public void delete(Long userId, Long templateId, String ip) {
         DocumentTemplate template = templateRepository.findById(templateId)
@@ -117,6 +123,7 @@ public class DocumentTemplateService {
         auditService.record(operator, "template_delete", "template", templateId, null, true, null, ip, null);
     }
 
+    // Shared permission guard for template write operations.
     private void ensureOwnerOrAdmin(User operator, DocumentTemplate template) {
         if (operator.getSystemRole() == SystemRole.ADMIN) {
             return;

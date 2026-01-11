@@ -1,8 +1,9 @@
 package com.docflow.common;
 
 public enum CommentStatus {
-    ACTIVE(1),
-    DELETED(2);
+    OPEN(1),
+    RESOLVED(2),
+    DELETED(3);
 
     private final int code;
 

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
+// 满意度调查（用户侧提交接口）
 @RestController
 @RequestMapping("/surveys")
 public class UserSatisfactionController {
@@ -25,10 +26,12 @@ public class UserSatisfactionController {
     @PostMapping
     public UserSatisfactionResponse submit(@Valid @RequestBody SubmitRequest request,
                                            HttpServletRequest httpRequest) {
+        // 提交评分与可选评论，Service 内负责参数校验与审计
         UserSatisfaction saved = satisfactionService.submit(SecurityUtils.getCurrentUserId(),
                 request.rating(),
                 request.comment(),
                 clientIp(httpRequest));
+        // 仅返回必要字段，避免暴露用户敏感信息
         return new UserSatisfactionResponse(saved.getId(),
                 saved.getUser().getId(),
                 saved.getRating(),
@@ -44,6 +47,7 @@ public class UserSatisfactionController {
         return request.getRemoteAddr();
     }
 
+    // 提交参数：评分 1~5，评论可选且长度受限
     public record SubmitRequest(@Min(1) @Max(5) int rating,
                                 @Size(max = 1000) String comment) {
     }

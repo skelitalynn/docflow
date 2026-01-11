@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+// 管理端用户管理控制器：用户列表、角色/状态调整、行为分析与审计查询。
+// 访问路径位于 /admin/**，权限由 SecurityConfig 限制为 ADMIN。
 @RestController
 @RequestMapping("/admin/users")
 public class UserAdminController {
@@ -35,22 +37,27 @@ public class UserAdminController {
         this.auditLogRepository = auditLogRepository;
     }
 
+    // 管理员用户列表：支持关键字/角色/状态筛选与分页返回。
     @GetMapping
     public PageResponse<AdminUserResponse> list(@RequestParam(value = "q", required = false) String keyword,
                                                 @RequestParam(value = "role", required = false) SystemRole role,
                                                 @RequestParam(value = "status", required = false) UserStatus status,
                                                 @RequestParam(value = "page", defaultValue = "0") int page,
                                                 @RequestParam(value = "size", defaultValue = "20") int size) {
+        // 关键字会在 Service 中映射到邮箱/手机号/昵称的模糊匹配
         Page<User> users = userService.listUsers(keyword, role, status, PageRequest.of(page, size));
+        // 仅输出管理端需要的字段，避免暴露敏感数据
         List<AdminUserResponse> items = users.map(this::toAdminResponse).getContent();
         return new PageResponse<>(items, users.getNumber(), users.getSize(),
                 users.getTotalElements(), users.getTotalPages());
     }
 
+    // 调整用户系统角色（管理员权限）。
     @PutMapping("/{id}/role")
     public AdminUserResponse updateRole(@PathVariable("id") Long userId,
                                         @Valid @RequestBody UpdateRoleRequest request,
                                         HttpServletRequest httpRequest) {
+        // Service 内部会进行管理员校验并写入审计日志
         User user = userService.updateSystemRole(SecurityUtils.getCurrentUserId(),
                 userId,
                 request.role(),
@@ -58,10 +65,12 @@ public class UserAdminController {
         return toAdminResponse(user);
     }
 
+    // 调整用户状态（启用/冻结/封禁）。
     @PutMapping("/{id}/status")
     public AdminUserResponse updateStatus(@PathVariable("id") Long userId,
                                           @Valid @RequestBody UpdateStatusRequest request,
                                           HttpServletRequest httpRequest) {
+        // Service 内部会进行管理员校验并写入审计日志
         User user = userService.updateStatus(SecurityUtils.getCurrentUserId(),
                 userId,
                 request.status(),
@@ -69,11 +78,16 @@ public class UserAdminController {
         return toAdminResponse(user);
     }
 
+    // 行为分析：基于审计日志聚合用户操作统计。
     @GetMapping("/{id}/behavior")
     public UserBehaviorResponse behavior(@PathVariable("id") Long userId) {
+        // 行为分析基于审计日志统计，数据来源为 t_audit_log
         userService.getById(userId);
+        // 统计该用户的操作总次数
         long total = auditLogRepository.countByActorId(userId);
+        // 查询最后一次操作时间，作为最近活跃时间
         LocalDateTime lastActiveAt = auditLogRepository.findLastActiveAt(userId);
+        // 按 action 聚合统计，例如 login_success、doc_create 等
         List<AuditLogRepository.ActionCount> counts = auditLogRepository.countActionsByActor(userId);
         List<ActionCountResponse> actions = new ArrayList<>();
         for (AuditLogRepository.ActionCount count : counts) {
@@ -82,10 +96,12 @@ public class UserAdminController {
         return new UserBehaviorResponse(userId, total, lastActiveAt, actions);
     }
 
+    // 审计明细：分页返回该用户的操作日志。
     @GetMapping("/{id}/audit")
     public PageResponse<AuditResponse> audit(@PathVariable("id") Long userId,
                                              @RequestParam(value = "page", defaultValue = "0") int page,
                                              @RequestParam(value = "size", defaultValue = "20") int size) {
+        // 先校验用户存在，避免查询无效用户
         userService.getById(userId);
         Page<AuditLog> logs = auditLogRepository.findByActorIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size));
         List<AuditResponse> items = logs.map(this::toResponse).getContent();

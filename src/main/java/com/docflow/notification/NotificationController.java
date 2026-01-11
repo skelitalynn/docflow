@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 
+//通知过滤：GET /notifications 支持 type/read/from/to 过滤，JPA Specification 动态拼接查询。
+
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
@@ -32,6 +34,7 @@ public class NotificationController {
         this.settingsService = settingsService;
     }
 
+    //打开通知列表页
     @GetMapping
     public NotificationListResponse list(@RequestParam(value = "page", defaultValue = "0") int page,
                                          @RequestParam(value = "size", defaultValue = "20") int size,
@@ -41,10 +44,14 @@ public class NotificationController {
                                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
                                          @RequestParam(value = "to", required = false)
                                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+
+        //从登录态拿通知，而不是从前端                                    
         Long userId = SecurityUtils.getCurrentUserId();
+        //查数据库，按照条件筛选，返回一个page（分页对象）
         Page<Notification> notifications = notificationService.list(userId, type, read, from, to,
                 PageRequest.of(page, size));
         List<NotificationResponse> items = notifications.map(this::toResponse).getContent();
+        //返回列表+小红点通知
         long unread = notificationService.unreadCount(userId);
         return new NotificationListResponse(
                 new PageResponse<>(items, notifications.getNumber(), notifications.getSize(),
@@ -52,6 +59,7 @@ public class NotificationController {
                 unread);
     }
 
+    //标记已读，全部或者勾选某几条
     @PostMapping("/read")
     public MessageResponse markRead(@Valid @RequestBody NotificationReadRequest request) {
         notificationService.markRead(SecurityUtils.getCurrentUserId(), request.ids(), request.all());

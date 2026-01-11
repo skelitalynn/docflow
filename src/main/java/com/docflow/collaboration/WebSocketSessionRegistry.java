@@ -10,7 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class WebSocketSessionRegistry {
+    // sessionId -> session
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    // userId -> sessionIds（支持多端在线）
     private final Map<Long, Set<String>> userSessions = new ConcurrentHashMap<>();
 
     public void register(Long userId, WebSocketSession session) {

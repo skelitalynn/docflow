@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Template APIs: create/list/get/update/delete.
 @RestController
 @RequestMapping("/templates")
 public class DocumentTemplateController {
@@ -31,6 +32,7 @@ public class DocumentTemplateController {
         this.templateService = templateService;
     }
 
+    // Create template.
     @PostMapping
     public TemplateResponse create(@Valid @RequestBody CreateTemplateRequest request, HttpServletRequest httpRequest) {
         DocumentTemplate template = templateService.create(
@@ -44,6 +46,7 @@ public class DocumentTemplateController {
         return toResponse(template);
     }
 
+    // List accessible templates.
     @GetMapping
     public PageResponse<TemplateResponse> list(@RequestParam(value = "page", defaultValue = "0") int page,
                                                @RequestParam(value = "size", defaultValue = "20") int size) {
@@ -53,12 +56,14 @@ public class DocumentTemplateController {
                 templates.getTotalElements(), templates.getTotalPages());
     }
 
+    // Get template detail (owned or public).
     @GetMapping("/{id}")
     public TemplateResponse get(@PathVariable("id") Long id) {
         DocumentTemplate template = templateService.getAccessible(SecurityUtils.getCurrentUserId(), id);
         return toResponse(template);
     }
 
+    // Update template (owner or admin).
     @PutMapping("/{id}")
     public TemplateResponse update(@PathVariable("id") Long id,
                                    @Valid @RequestBody UpdateTemplateRequest request,
@@ -75,6 +80,7 @@ public class DocumentTemplateController {
         return toResponse(template);
     }
 
+    // Delete template (owner or admin).
     @DeleteMapping("/{id}")
     public MessageResponse delete(@PathVariable("id") Long id, HttpServletRequest httpRequest) {
         templateService.delete(SecurityUtils.getCurrentUserId(), id, clientIp(httpRequest));

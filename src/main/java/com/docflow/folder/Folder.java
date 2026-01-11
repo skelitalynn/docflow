@@ -17,6 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// Folder entity (personal scope, soft delete).
 @Entity
 @Table(name = "t_folder")
 @Getter

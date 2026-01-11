@@ -43,6 +43,7 @@ public class TaskService {
         this.auditService = auditService;
     }
 
+    //创建任务
     @Transactional
     public Task create(Long userId,
                        Long docId,
@@ -57,9 +58,11 @@ public class TaskService {
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         aclService.requireRole(userId, docId, DocRole.EDITOR);
+        //创建者
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         User assignee = null;
+        //有没有指定的负责人
         if (assigneeId != null) {
             assignee = userRepository.findById(assigneeId)
                     .orElseThrow(() -> new BadRequestException("Assignee not found"));
@@ -77,6 +80,7 @@ public class TaskService {
         Map<String, Object> meta = new HashMap<>();
         meta.put("assigneeId", assigneeId);
         auditService.record(creator, "task_create", "task", saved.getId(), document, true, null, ip, meta);
+        // 有明确负责人时触发分配通知。
         if (assignee != null) {
             notificationService.notifyTaskAssigned(assignee, document, saved, "Task assigned");
         }
@@ -84,6 +88,7 @@ public class TaskService {
     }
 
     @Transactional
+    //更新任务
     public Task update(Long userId,
                        Long taskId,
                        String title,
@@ -92,14 +97,17 @@ public class TaskService {
                        LocalDateTime dueAt,
                        TaskStatus status,
                        String ip) {
+        //任务是否存在
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Task not found"));
         Document document = task.getDocument();
+        //权限
         aclService.requireRole(userId, document.getId(), DocRole.EDITOR);
         User operator = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         Map<String, Object> meta = new HashMap<>();
 
+        //字段是否改变？改变才记录
         if (title != null && !title.isBlank() && !title.equals(task.getTitle())) {
             task.setTitle(title.trim());
             meta.put("title", task.getTitle());
@@ -119,6 +127,7 @@ public class TaskService {
             if (!newAssignee.getId().equals(currentId)) {
                 task.setAssignee(newAssignee);
                 meta.put("assigneeId", newAssignee.getId());
+                //通知
                 notificationService.notifyTaskAssigned(newAssignee, document, task, "Task assigned");
             }
         }
@@ -127,6 +136,7 @@ public class TaskService {
             task.setStatus(status);
             statusChanged = true;
             meta.put("status", status.name());
+            // DONE 时记录完成时间，其他状态清空完成时间。
             if (status == TaskStatus.DONE) {
                 task.setCompletedAt(LocalDateTime.now());
             } else {
@@ -137,6 +147,7 @@ public class TaskService {
         Task saved = taskRepository.save(task);
         auditService.record(operator, "task_update", "task", saved.getId(), document, true, null, ip, meta);
         if (statusChanged && status == TaskStatus.DONE) {
+            // 完成通知会发给创建者，必要时也发给负责人。
             notificationService.notifyTaskCompleted(task.getCreator(), document, saved, "Task completed");
             if (task.getAssignee() != null && !task.getAssignee().getId().equals(task.getCreator().getId())) {
                 notificationService.notifyTaskCompleted(task.getAssignee(), document, saved, "Task completed");
@@ -145,16 +156,19 @@ public class TaskService {
         return saved;
     }
 
+    //列出某文档的任务列表
     public Page<Task> listByDocument(Long userId, Long docId, TaskStatus status, Pageable pageable) {
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         aclService.requireRole(userId, docId, DocRole.VIEWER);
+        //必须要有查看权限
         if (status == null) {
             return taskRepository.findByDocumentIdOrderByCreatedAtDesc(docId, pageable);
         }
         return taskRepository.findByDocumentIdAndStatusOrderByCreatedAtDesc(docId, status, pageable);
     }
 
+    //看所有分配给我的任务
     public Page<Task> listAssigned(Long userId, Pageable pageable) {
         return taskRepository.findByAssigneeIdOrderByCreatedAtDesc(userId, pageable);
     }

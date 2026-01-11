@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+// 屏幕共享接口：开始/结束/查询，并通过 WS 广播给文档成员。
 @RestController
 @RequestMapping
 public class ScreenShareController {
@@ -40,12 +41,15 @@ public class ScreenShareController {
     @PostMapping("/docs/{id}/screen-share/start")
     public ScreenShareResponse start(@PathVariable("id") Long docId,
                                      @Valid @RequestBody ScreenShareRequest request) {
+        // 1) 校验文档存在与编辑权限。
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         Long userId = SecurityUtils.getCurrentUserId();
         aclService.requireRole(userId, docId, DocRole.EDITOR);
+        // 2) 写入共享状态。
         ScreenShareService.ScreenShareState state = screenShareService.start(docId, userId, request.shareUrl());
 
+        // 3) 广播共享开始事件，协作者端刷新 UI。
         Map<String, Object> payload = new HashMap<>();
         payload.put("docId", docId);
         payload.put("userId", userId);
@@ -58,12 +62,14 @@ public class ScreenShareController {
 
     @PostMapping("/docs/{id}/screen-share/stop")
     public ScreenShareResponse stop(@PathVariable("id") Long docId) {
+        // 结束共享同样要求编辑权限。
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         Long userId = SecurityUtils.getCurrentUserId();
         aclService.requireRole(userId, docId, DocRole.EDITOR);
         ScreenShareService.ScreenShareState state = screenShareService.stop(docId);
 
+        // 广播共享结束事件。
         Map<String, Object> payload = new HashMap<>();
         payload.put("docId", docId);
         payload.put("userId", userId);
@@ -77,6 +83,7 @@ public class ScreenShareController {
 
     @GetMapping("/docs/{id}/screen-share")
     public ScreenShareResponse status(@PathVariable("id") Long docId) {
+        // 查询共享状态只需查看权限。
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         Long userId = SecurityUtils.getCurrentUserId();

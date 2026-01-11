@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Document APIs: create/edit/autosave/versioning/list/search with ACL checks in service.
 @RestController
 @RequestMapping
 public class DocumentController {
@@ -36,6 +37,7 @@ public class DocumentController {
         this.docMemberRepository = docMemberRepository;
     }
 
+    // Create a document, optionally using folder/template/tags.
     @PostMapping("/docs")
     public DocumentResponse create(@Valid @RequestBody CreateDocumentRequest request, HttpServletRequest httpRequest) {
         Document document = documentService.create(SecurityUtils.getCurrentUserId(),
@@ -49,12 +51,14 @@ public class DocumentController {
         return toResponse(document, DocRole.OWNER);
     }
 
+    // Fetch a document with current role information.
     @GetMapping("/docs/{id}")
     public DocumentResponse get(@PathVariable("id") Long id) {
         DocumentService.DocumentWithRole result = documentService.getDocument(SecurityUtils.getCurrentUserId(), id);
         return toResponse(result.document(), result.role());
     }
 
+    // Manual save (increments version, may conflict on baseVersion).
     @PutMapping("/docs/{id}")
     public DocumentResponse updateContent(@PathVariable("id") Long id,
                                           @Valid @RequestBody UpdateDocumentRequest request,
@@ -70,6 +74,7 @@ public class DocumentController {
         return toResponse(document, role);
     }
 
+    // Autosave (same conflict rules, no edit notification).
     @PutMapping("/docs/{id}/autosave")
     public DocumentResponse autoSave(@PathVariable("id") Long id,
                                      @Valid @RequestBody UpdateDocumentRequest request,
@@ -85,6 +90,7 @@ public class DocumentController {
         return toResponse(document, role);
     }
 
+    // Rename title (requires EDITOR or above).
     @PutMapping("/docs/{id}/title")
     public DocumentResponse rename(@PathVariable("id") Long id,
                                    @Valid @RequestBody RenameDocumentRequest request,
@@ -96,12 +102,14 @@ public class DocumentController {
         return toResponse(document, role);
     }
 
+    // Soft delete (OWNER only).
     @DeleteMapping("/docs/{id}")
     public MessageResponse delete(@PathVariable("id") Long id, HttpServletRequest httpRequest) {
         documentService.delete(SecurityUtils.getCurrentUserId(), id, clientIp(httpRequest));
         return new MessageResponse("ok");
     }
 
+    // List accessible documents with folder/tag filters and sorting.
     @GetMapping("/docs")
     public PageResponse<DocumentSummary> list(@RequestParam(value = "folderId", required = false) Long folderId,
                                               @RequestParam(value = "tagId", required = false) Long tagId,
@@ -123,6 +131,7 @@ public class DocumentController {
         return new PageResponse<>(summaries, docs.getNumber(), docs.getSize(), docs.getTotalElements(), docs.getTotalPages());
     }
 
+    // Search across accessible docs (keyword/author/time/tag + sort).
     @GetMapping("/search")
     public PageResponse<DocumentSummary> search(@RequestParam(value = "q", required = false) String keyword,
                                                 @RequestParam(value = "authorId", required = false) Long authorId,
@@ -141,7 +150,7 @@ public class DocumentController {
                 from,
                 to,
                 tagId,
-                pageRequest(page, size, sortBy, order));
+                pageRequestForSearch(page, size, sortBy, order));
         List<DocumentSummary> summaries = docs.map(doc -> new DocumentSummary(
                 doc.getId(),
                 doc.getTitle(),
@@ -150,6 +159,64 @@ public class DocumentController {
                 doc.getUpdatedAt()
         )).getContent();
         return new PageResponse<>(summaries, docs.getNumber(), docs.getSize(), docs.getTotalElements(), docs.getTotalPages());
+    }
+
+    // List version history (all/manual/autosave).
+    @GetMapping("/docs/{id}/versions")
+    public PageResponse<VersionSummary> listVersions(@PathVariable("id") Long docId,
+                                                     @RequestParam(value = "type", defaultValue = "all") String type,
+                                                     @RequestParam(value = "page", defaultValue = "0") int page,
+                                                     @RequestParam(value = "size", defaultValue = "20") int size) {
+        Boolean autosave = null;
+        if ("autosave".equalsIgnoreCase(type)) {
+            autosave = true;
+        } else if ("manual".equalsIgnoreCase(type)) {
+            autosave = false;
+        }
+        Page<DocumentVersion> versions = documentService.listVersions(SecurityUtils.getCurrentUserId(),
+                docId,
+                autosave,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<VersionSummary> items = versions.map(version -> new VersionSummary(
+                version.getId(),
+                version.getVersionNumber(),
+                version.getContentFormat(),
+                version.isAutosave(),
+                version.getActor().getId(),
+                version.getCreatedAt()
+        )).getContent();
+        return new PageResponse<>(items, versions.getNumber(), versions.getSize(),
+                versions.getTotalElements(), versions.getTotalPages());
+    }
+
+    // Get a single version detail (content snapshot).
+    @GetMapping("/docs/{id}/versions/{versionId}")
+    public VersionDetail getVersion(@PathVariable("id") Long docId,
+                                    @PathVariable("versionId") Long versionId) {
+        DocumentVersion version = documentService.getVersion(SecurityUtils.getCurrentUserId(), docId, versionId);
+        return new VersionDetail(version.getId(),
+                version.getVersionNumber(),
+                version.getContent(),
+                version.getContentFormat(),
+                version.isAutosave(),
+                version.getActor().getId(),
+                version.getCreatedAt());
+    }
+
+    // Restore a version (also goes through version conflict check).
+    @PostMapping("/docs/{id}/versions/{versionId}/restore")
+    public DocumentResponse restoreVersion(@PathVariable("id") Long docId,
+                                           @PathVariable("versionId") Long versionId,
+                                           @Valid @RequestBody RestoreRequest request,
+                                           HttpServletRequest httpRequest) {
+        Document restored = documentService.restoreVersion(SecurityUtils.getCurrentUserId(),
+                docId,
+                versionId,
+                request.baseVersion(),
+                clientIp(httpRequest));
+        DocRole role = docMemberRepository.findByDocumentIdAndUserId(docId, SecurityUtils.getCurrentUserId())
+                .map(member -> member.getRole()).orElse(DocRole.VIEWER);
+        return toResponse(restored, role);
     }
 
     private DocumentResponse toResponse(Document document, DocRole role) {
@@ -166,6 +233,17 @@ public class DocumentController {
         String property = "updatedAt";
         if ("createdAt".equalsIgnoreCase(sortBy)) {
             property = "createdAt";
+        } else if ("title".equalsIgnoreCase(sortBy)) {
+            property = "title";
+        }
+        Sort.Direction direction = "asc".equalsIgnoreCase(order) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return PageRequest.of(page, size, Sort.by(direction, property));
+    }
+
+    private PageRequest pageRequestForSearch(int page, int size, String sortBy, String order) {
+        String property = "updated_at";
+        if ("createdAt".equalsIgnoreCase(sortBy)) {
+            property = "created_at";
         } else if ("title".equalsIgnoreCase(sortBy)) {
             property = "title";
         }
@@ -215,6 +293,26 @@ public class DocumentController {
                                   Long folderId,
                                   DocFormat format,
                                   LocalDateTime updatedAt) {
+    }
+
+    public record VersionSummary(Long id,
+                                 int versionNumber,
+                                 DocFormat format,
+                                 boolean autosave,
+                                 Long actorId,
+                                 LocalDateTime createdAt) {
+    }
+
+    public record VersionDetail(Long id,
+                                int versionNumber,
+                                String content,
+                                DocFormat format,
+                                boolean autosave,
+                                Long actorId,
+                                LocalDateTime createdAt) {
+    }
+
+    public record RestoreRequest(@NotNull Integer baseVersion) {
     }
 
     public record MessageResponse(String message) {

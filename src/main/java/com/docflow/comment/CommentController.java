@@ -1,16 +1,12 @@
 package com.docflow.comment;
 
+import com.docflow.common.CommentStatus;
 import com.docflow.security.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +46,18 @@ public class CommentController {
         return toResponse(reply);
     }
 
+    @PutMapping("/comments/{id}/status")
+    // 批注状态更新（OPEN/RESOLVED）。
+    public CommentResponse updateStatus(@PathVariable("id") Long commentId,
+                                        @Valid @RequestBody UpdateStatusRequest request,
+                                        HttpServletRequest httpRequest) {
+        Comment updated = commentService.updateStatus(SecurityUtils.getCurrentUserId(),
+                commentId,
+                request.status(),
+                clientIp(httpRequest));
+        return toResponse(updated);
+    }
+
     @GetMapping("/docs/{id}/comments")
     public List<CommentResponse> list(@PathVariable("id") Long docId,
                                       @RequestParam(value = "page", defaultValue = "0") int page,
@@ -69,6 +77,7 @@ public class CommentController {
                 comment.getBlockId(),
                 comment.getParagraphIndex(),
                 comment.getContent(),
+                comment.getStatus(),
                 comment.getCreatedAt()
         );
     }
@@ -91,6 +100,9 @@ public class CommentController {
                                List<Long> mentions) {
     }
 
+    public record UpdateStatusRequest(@NotNull CommentStatus status) {
+    }
+
     public record CommentResponse(Long id,
                                   Long docId,
                                   Long threadId,
@@ -99,6 +111,7 @@ public class CommentController {
                                   String blockId,
                                   Integer paragraphIndex,
                                   String content,
+                                  CommentStatus status,
                                   LocalDateTime createdAt) {
     }
 }

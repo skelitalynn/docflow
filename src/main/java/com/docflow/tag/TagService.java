@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 
+// Tag domain: personal tag CRUD + audit.
 @Service
 public class TagService {
     private final TagRepository tagRepository;
@@ -28,10 +29,12 @@ public class TagService {
         this.auditService = auditService;
     }
 
+    // List tags owned by current user (sorted).
     public List<Tag> list(Long userId) {
         return tagRepository.findByOwnerIdOrderByNameAsc(userId);
     }
 
+    // Create a unique tag under current user.
     @Transactional
     public Tag create(Long userId, String name, String ip) {
         if (name == null || name.isBlank()) {
@@ -52,6 +55,7 @@ public class TagService {
         return saved;
     }
 
+    // Rename a tag with uniqueness check.
     @Transactional
     public Tag rename(Long userId, Long tagId, String name, String ip) {
         if (name == null || name.isBlank()) {
@@ -70,6 +74,7 @@ public class TagService {
         return saved;
     }
 
+    // Delete a tag and its doc mappings.
     @Transactional
     public void delete(Long userId, Long tagId, String ip) {
         Tag tag = tagRepository.findByIdAndOwnerId(tagId, userId)

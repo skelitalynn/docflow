@@ -65,6 +65,11 @@ public class NotificationService {
         createAndPush(target, document, comment, NotificationType.COMMENT, message);
     }
 
+    public void notifyCommentStatus(User target, Document document, Comment comment, String message) {
+        createAndPush(target, document, comment, NotificationType.COMMENT_STATUS, message);
+    }
+
+    //查通知列表
     public Page<Notification> list(Long userId,
                                    NotificationType type,
                                    Boolean read,
@@ -88,10 +93,12 @@ public class NotificationService {
         return notificationRepository.findAll(spec, pageable);
     }
 
+    //小红点——未读通知
     public long unreadCount(Long userId) {
         return notificationRepository.countByUserIdAndReadFalse(userId);
     }
 
+    //标记已读
     @Transactional
     public void markRead(Long userId, List<Long> ids, boolean all) {
         if (all) {
@@ -143,9 +150,11 @@ public class NotificationService {
                                Task task,
                                NotificationType type,
                                String message) {
+        // 先尊重用户通知设置，再落库 + 推送。
         if (target == null || !settingsService.isEnabled(target.getId(), type)) {
             return;
         }
+        //打包要展示的信息
         String payload = toPayload(message, document, comment, task);
         Notification notification = Notification.builder()
                 .user(target)
@@ -167,7 +176,9 @@ public class NotificationService {
         notifier.sendToUser(target.getId(), "notification.push", data);
     }
 
+    //将所有类型的通知统一生成一份JSON，前端拿到就能直接展示
     private String toPayload(String message, Document document, Comment comment, Task task) {
+        // 统一 JSON payload，方便前端展示与跳转。
         Map<String, Object> payload = new HashMap<>();
         payload.put("message", message);
         if (document != null) {
@@ -176,6 +187,9 @@ public class NotificationService {
         }
         if (comment != null) {
             payload.put("commentId", comment.getId());
+            if (comment.getStatus() != null) {
+                payload.put("commentStatus", comment.getStatus().name());
+            }
         }
         if (task != null) {
             payload.put("taskId", task.getId());

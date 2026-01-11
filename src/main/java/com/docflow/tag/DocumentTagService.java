@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+// Document-tag binding with ACL guard and audit.
 @Service
 public class DocumentTagService {
     private final DocTagRepository docTagRepository;
@@ -38,6 +39,7 @@ public class DocumentTagService {
         this.auditService = auditService;
     }
 
+    // List tags for a document (VIEWER or above).
     public List<Tag> listTags(Long docId, Long userId) {
         documentRepository.findByIdAndDeletedFalse(docId)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
@@ -47,6 +49,7 @@ public class DocumentTagService {
                 .collect(Collectors.toList());
     }
 
+    // Replace tags for a document (OWNER or ADMIN).
     @Transactional
     public void setTags(Long docId, Long userId, List<Long> tagIds, String ip) {
         Document document = documentRepository.findByIdAndDeletedFalse(docId)
